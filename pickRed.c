@@ -1,11 +1,30 @@
 /*
 Project    : Pick Red Game in C language
 Author     : josh24311
-Date       : 20231012
-Version    : 1.0.0
+Date       : 20231013
+Version    : 1.0.1
 ---
-Description:
+< Description >
 A poker game for 4 people to play.The one has highest points wins the game.
+In the beginning, every player gets 6 cards, and there are 4 cards on table.
+Each round, everyone play one card in their hand trying to eat card on table.
+After that, they draws one card from the deck and has another chance to eat card on table.
+After 6 rounds, the game will be over, then players start to count their points.
+
+< Point rule >
+1. The one eats double red fives gets 70 points, other players need to minus 20 points.
+2. Red 9, 10 , J ,Q , K : 10 points
+3. Club A : 40 points, Spade A : 30 points, Heart A & Diamond A : 20 points.
+4. Red 2~8 : 2~8 points (red 5 got 5 points if no one gets double red 5)
+
+< Version Change >
+(v1.0.0)
+1. Initial Release
+2. The program plays game automatically, all players choose cards based on simple stratergy.
+3. At the end of game, show all players points and cards they ate.
+
+(v1.0.1)
+1. Change player 0 as human controlled.
 
 
 ---
@@ -216,14 +235,32 @@ void initialGame(struct pokerCards* cards, struct pokerCards** cTable, struct po
   
 }
 
-void printPlayerHold(struct pokerCards* cards, struct playerCard* player){
-  
-  for(int i = 0; i < playerNum; i++){// 0,1,2,3
-    printf("Player %d hold [\t",i);
-    for(int j = 0; j < player[i].holdSize; j++){// 0,1,2,3,4,5
-      printf("%ls%c\t",player[i].holds[j].suit, player[i].holds[j].num);
+void printPlayerHold(struct pokerCards* cards, struct playerCard* player, int who){
+  if(who == -1){//print all player's holdcards
+    for(int i = 0; i < playerNum; i++){// 0,1,2,3
+      printf("Player %d hold [\t",i);
+      for(int j = 0; j < player[i].holdSize; j++){// 0,1,2,3,4,5
+        printf("%ls%c\t",player[i].holds[j].suit, player[i].holds[j].num);
+      }
+      printf("]\n");
+    }
+    printf("\n");
+  }
+  else{
+    printf("Player %d hold [\t",who);
+    for(int j = 0; j < player[who].holdSize; j++){// 0,1,2,3,4,5
+      printf("%ls%c\t",player[who].holds[j].suit, player[who].holds[j].num);
     }
     printf("]\n");
+    printf("                _");
+    for(int j = 0; j < player[0].holdSize; j++){
+      if(j != player[0].holdSize-1){
+        printf("%d  _",j);
+      }
+      else{
+        printf("%d",j);
+      }
+    }
   }
   printf("\n");
 }
@@ -358,6 +395,34 @@ int* tidx){
   return false;
 }
 
+bool strategyMe(struct pokerCards* cards, 
+struct playerCard** player,  
+struct pokerCards** cTable, 
+struct pokerCards** cBank, 
+int* tableSize, 
+int* bankSize,
+const int j,
+int* hidx,
+int* tidx){
+  int q = 0, k = 0, w = 0;
+  
+  bool canEat;
+  
+  q = findHoldIdFromCards(cards, player, j,(*hidx));
+  for(k = (*tableSize)-1; k >= 0; k--){
+    canEat = false;
+    w = findTableIdFromCards(cards, cTable, k);
+    canEat = cardGoEat(cards, q, w);// 手牌[hidx] 是否能吃 table [k]
+    if(canEat){
+      //printf("can eat with handcard %d\n",*hidx);
+      *tidx = k;
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 void throwCards(struct pokerCards* cards, 
 struct playerCard** player,  
 struct pokerCards** cTable, 
@@ -372,13 +437,25 @@ int j){
   3. 手牌不能吃 翻牌吃桌面
   4. 手牌不能吃 翻牌不能吃
   */
+  printf("Player %d's turn : ",j);
+  bool hasEaten;
   int hidx = -1;
   int tidx = -1;
-  bool hasEaten = strategy(cards, player, cTable, cBank, tableSize, bankSize, j, &hidx, &tidx);
+  if(j == 0){
+    printf("Choose a card to play (0 ~ %d)\n",(*player)[0].holdSize-1);
+    scanf("%d",&hidx);
+    hasEaten = strategyMe(cards, player, cTable, cBank, tableSize, bankSize, j, &hidx, &tidx);
+  }
+  else{
+    hasEaten = strategy(cards, player, cTable, cBank, tableSize, bankSize, j, &hidx, &tidx);
+  }
+
+  
   if(hasEaten){//手牌吃桌面
     bool bankEatTable = false;
     // hold to ate
     (*player)[j].ate[(*player)[j].ateSize] = (*player)[j].holds[hidx];
+    printf("Play %ls%c to eat ",(*player)[j].holds[hidx].suit, (*player)[j].holds[hidx].num);
     (*player)[j].ateSize++;
     for(int i = hidx; i < (*player)[j].holdSize-1; i++){
       (*player)[j].holds[i] = (*player)[j].holds[i+1];
@@ -387,6 +464,7 @@ int j){
 
     // cTable to ate
     (*player)[j].ate[(*player)[j].ateSize] = (*cTable)[tidx];
+    printf("%ls%c",(*cTable)[tidx].suit, (*cTable)[tidx].num);
     (*player)[j].ateSize++;
     // move items in table
     for(int i = tidx; i < (*tableSize)-1; i++){
@@ -402,10 +480,12 @@ int j){
       if(bankEatTable){// 翻牌可以吃
         // bank to ate
         (*player)[j].ate[(*player)[j].ateSize] = (*cBank)[*bankSize-1];
+        printf("\tDraw %ls%c to eat ",(*cBank)[*bankSize-1].suit, (*cBank)[*bankSize-1].num);
         (*player)[j].ateSize++;
         (*bankSize)--;
         // cTable to ate
         (*player)[j].ate[(*player)[j].ateSize] = (*cTable)[i];
+        printf("%ls%c",(*cTable)[i].suit, (*cTable)[i].num);
         (*player)[j].ateSize++;
         // move items in table
         for(int k = i; k < (*tableSize)-1; k++){
@@ -417,21 +497,35 @@ int j){
     }
     if(!bankEatTable){//翻牌不能吃 
       (*cTable)[*tableSize] = (*cBank)[*bankSize-1];
+      printf("\tDraw %ls%c to table",(*cBank)[*bankSize-1].suit, (*cBank)[*bankSize-1].num);
       (*tableSize)++;
       qsort((*cTable), (*tableSize), sizeof(struct pokerCards), cmp);// sort table with point
       (*bankSize)--;
     }
-    
+
   }
-  else{//手牌沒法吃桌面
+  else{//手牌沒法吃桌面 丟一張牌
     bool bankEatTable = false;
-    (*cTable)[*tableSize] = (*player)[j].holds[0];//丟prior最小者到table
+    if(j == 0){//you
+      (*cTable)[*tableSize] = (*player)[j].holds[hidx];//丟hidx到table
+      printf("Play %ls%c to table ",(*player)[j].holds[hidx].suit, (*player)[j].holds[hidx].num);
+      for(int i = hidx; i < (*player)[j].holdSize-1; i++){
+        (*player)[j].holds[i] = (*player)[j].holds[i+1];
+      }
+    }
+    else{//player 1~3
+      (*cTable)[*tableSize] = (*player)[j].holds[0];//丟prior最小者到table
+      printf("Play %ls%c to table ",(*player)[j].holds[0].suit, (*player)[j].holds[0].num);
+      for(int i = 0; i < (*player)[j].holdSize-1; i++){
+        (*player)[j].holds[i] = (*player)[j].holds[i+1];
+      }
+    }
+    
     (*tableSize)++;
     qsort((*cTable), (*tableSize), sizeof(struct pokerCards), cmp);// sort table with point
-    for(int i = 0; i < (*player)[j].holdSize-1; i++){
-      (*player)[j].holds[i] = (*player)[j].holds[i+1];
-    }
     (*player)[j].holdSize--;
+    
+    
 
 
     // 翻牌
@@ -442,10 +536,12 @@ int j){
       if(bankEatTable){// 翻牌可以吃
         // bank to ate
         (*player)[j].ate[(*player)[j].ateSize] = (*cBank)[*bankSize-1];
+        printf("\tDraw %ls%c to eat ",(*cBank)[*bankSize-1].suit, (*cBank)[*bankSize-1].num);
         (*player)[j].ateSize++;
         (*bankSize)--;
         // cTable to ate
         (*player)[j].ate[(*player)[j].ateSize] = (*cTable)[i];
+        printf("%ls%c",(*cTable)[i].suit, (*cTable)[i].num);
         (*player)[j].ateSize++;
         // move items in table
         for(int k = i; k < (*tableSize)-1; k++){
@@ -457,11 +553,14 @@ int j){
     }
     if(!bankEatTable){//翻牌不能吃 
       (*cTable)[*tableSize] = (*cBank)[*bankSize-1];
+      printf("\tDraw %ls%c to table",(*cBank)[*bankSize-1].suit, (*cBank)[*bankSize-1].num);
       (*tableSize)++;
       qsort((*cTable), (*tableSize), sizeof(struct pokerCards), cmp);// sort table with point
       (*bankSize)--;
     }
   }
+  
+  printf("\n");
 
 }
 
@@ -479,19 +578,21 @@ int* bankSize){
   */
   int j = 0;
   for(int i = 0 ; i < 6; i++){
+    printf("\nRound %d \n",i);
     for(j = 0; j < playerNum; j++){
       throwCards(cards, player, cTable, cBank, tableSize, bankSize, j);
       
     }
-    /*
-    if(i == 4){
-      printf("i = 4 ==================\n");
-      printPlayerHold(cards,*player);
-      printTable(cards,*cTable,tableSize);
-      printBank(cards, *cBank,bankSize);
-      printf("i = 4 ==================\n");
-    }
-    */
+    printf("\n");
+    printPlayerHold(cards,*player,0);
+    
+    //printPlayerAte(cards, *player);
+    
+    printTable(cards,*cTable,tableSize);
+    //printBank(cards, *cBank,bankSize);
+    
+    
+    
   }
   printf("========== GAME OVER ========== \n");
 }
@@ -635,16 +736,16 @@ int main(void) {
     initialGame(cards,&cTable,&cBank,&player,&tableSize);  
   }
   
-  printPlayerHold(cards,player);
-  printPlayerAte(cards, player);
+  printPlayerHold(cards,player,0);
+  //printPlayerAte(cards, player);
   printTable(cards, cTable, &tableSize);
-  printBank(cards,  cBank,  &bankSize);
+  //printBank(cards,  cBank,  &bankSize);
   
   
   
   game(cards,&player,&cTable,&cBank,&tableSize,&bankSize);
   printPlayerAte(cards, player);
-  //printPlayerHold(cards,player);
+  //printPlayerHold(cards,player,-1);
   //printTable(cards,cTable,&tableSize);
   //printBank(cards, cBank,&bankSize);
   printScore(cards, player);
